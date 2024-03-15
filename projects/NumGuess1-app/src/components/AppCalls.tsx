@@ -1,102 +1,71 @@
-import * as algokit from '@algorandfoundation/algokit-utils'
-import { TransactionSignerAccount } from '@algorandfoundation/algokit-utils/types/account'
-import { AppDetails } from '@algorandfoundation/algokit-utils/types/app-client'
-import { useWallet } from '@txnlab/use-wallet'
-import { useSnackbar } from 'notistack'
-import { useState } from 'react'
+import React, { useState } from 'react';
+import { useSnackbar } from 'notistack';
+import { useWallet } from '@txnlab/use-wallet';
+import algosdk, { Transaction } from 'algosdk';
+import AlgorandService, { PogadjanjeGameState } from '../utils/AlgorandService';
 
-import { PogadjanjeClient } from '../contracts/pogadjanje'
-
-import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../utils/network/getAlgoClientConfigs'
-
-interface AppCallsInterface {
-  openModal: boolean
-  setModalState: (value: boolean) => void
+interface AppCallsProps {
+  openModal: boolean;
+  setModalState: (value: boolean) => void;
+  secretGuess: (uplata: Transaction, guess: number) => Promise<string>;
+  // getAppState: () => Promise<void>;
+  getBalance: () => Promise<number>
+  getAdress: () => string
 }
 
-const AppCalls = ({ openModal, setModalState }: AppCallsInterface) => {
-  const [loading, setLoading] = useState<boolean>(false)
-  const [contractInput, setContractInput] = useState<string>('')
+const AppCalls: React.FC<AppCallsProps> = ({ openModal, setModalState, secretGuess, getBalance, getAdress }) => {
+  const [contractInput, setContractInput] = useState<number>(0);
+  const [bid, setBid] = useState<string>('')
+  const { enqueueSnackbar } = useSnackbar();
+  const { activeAddress, signTransactions } = useWallet();
 
-  const algodConfig = getAlgodConfigFromViteEnvironment()
-  const algodClient = algokit.getAlgoClient({
-    server: algodConfig.server,
-    port: algodConfig.port,
-    token: algodConfig.token,
-  })
 
-  const indexerConfig = getIndexerConfigFromViteEnvironment()
-  const indexer = algokit.getAlgoIndexerClient({
-    server: indexerConfig.server,
-    port: indexerConfig.port,
-    token: indexerConfig.token,
-  })
-
-  const { enqueueSnackbar } = useSnackbar()
-  const { signer, activeAddress } = useWallet()
-
-  const sendAppCall = async () => {
-    setLoading(true)
-
-    const appDetails = {
-      resolveBy: 'creatorAndName',
-      sender: { signer, addr: activeAddress } as TransactionSignerAccount,
-      creatorAddress: activeAddress,
-      findExistingUsing: indexer,
-    } as AppDetails
-
-    const appClient = new PogadjanjeClient(appDetails, algodClient)
-
-    // Please note, in typical production scenarios,
-    // you wouldn't want to use deploy directly from your frontend.
-    // Instead, you would deploy your contract on your backend and reference it by id.
-    // Given the simplicity of the starter contract, we are deploying it on the frontend
-    // for demonstration purposes.
-    const deployParams = {
-      onSchemaBreak: 'append',
-      onUpdate: 'append',
+  const handlePlayerMove = async () => {
+    if (!activeAddress) {
+      enqueueSnackbar('Please connect wallet first', { variant: 'warning' });
+      return;
     }
-    await appClient.deploy(deployParams).catch((e: Error) => {
-      enqueueSnackbar(`Error deploying the contract: ${e.message}`, { variant: 'error' })
-      setLoading(false)
-      return
-    })
+    const algosBefore = await getBalance()
+    try {
 
-    const response = await appClient.hello({ name: contractInput }).catch((e: Error) => {
-      enqueueSnackbar(`Error calling the contract: ${e.message}`, { variant: 'error' })
-      setLoading(false)
-      return
-    })
+      const suggestedParams = await AlgorandService.algodClient.getTransactionParams().do();
+      const bidding = bid
 
-    enqueueSnackbar(`Response from the contract: ${response?.return}`, { variant: 'success' })
-    setLoading(false)
-  }
+      if(!parseInt(bidding)){
+        enqueueSnackbar("Bid must be an integer!", {variant: 'warning'})
+        return
+      }
+
+      const transaction = algosdk.makePaymentTxnWithSuggestedParams(activeAddress, getAdress(), parseInt(bidding) * 1000000, undefined, undefined, suggestedParams);
+      await secretGuess(transaction, contractInput);
+      // enqueueSnackbar(`Response from the contract: ${response}`, { variant: 'success' });
+    } catch (error) {
+      if((error as Error).message.includes('overspend')){
+        enqueueSnackbar('Application doesn\'t have enough money to pay you :(\n Come back later or try lower bid :(')
+        return
+      }
+      const algosAfter = await getBalance()
+      if(algosAfter > algosBefore){
+        enqueueSnackbar("Congrats! Available algos: " + algosAfter, {variant: "success"})
+      } else{
+        enqueueSnackbar("So close! Available algos: " + algosAfter, {variant: "error"})
+      }
+    }
+  };
 
   return (
-    <dialog id="appcalls_modal" className={`modal ${openModal ? 'modal-open' : ''} bg-slate-200`}>
-      <form method="dialog" className="modal-box">
-        <h3 className="font-bold text-lg">Say hello to your Algorand smart contract</h3>
-        <br />
-        <input
-          type="text"
-          placeholder="Provide input to hello function"
-          className="input input-bordered w-full"
-          value={contractInput}
-          onChange={(e) => {
-            setContractInput(e.target.value)
-          }}
-        />
-        <div className="modal-action ">
-          <button className="btn" onClick={() => setModalState(!openModal)}>
-            Close
-          </button>
-          <button className={`btn`} onClick={sendAppCall}>
-            {loading ? <span className="loading loading-spinner" /> : 'Send application call'}
-          </button>
+    <dialog className={`modal ${openModal ? 'modal-open' : ''}`}>
+      <form className="modal-box">
+        <h3 className="font-bold text-lg">Can YOU guess the hidden number?</h3>
+        <input type="number" placeholder="Guess a number 1-10" className="input input-bordered w-full mt-4" value={contractInput.toString()} onChange={(e) => setContractInput(parseInt(e.target.value))} />
+        <input type="text" placeholder="Bidding amount:" className="input input-bordered w-full mt-4" value={bid} onChange={(e) => setBid(e.target.value)} />
+        <div className="modal-action">
+          <button type="button" className="btn" onClick={() => setModalState(false)}>Close</button>
+          <button type="button" className="btn btn-primary" onClick={handlePlayerMove}>Try your luck!</button>
         </div>
       </form>
     </dialog>
-  )
-}
+  );
+};
 
-export default AppCalls
+export default AppCalls;

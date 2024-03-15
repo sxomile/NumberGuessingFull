@@ -1,76 +1,106 @@
-// src/components/Home.tsx
-import { useWallet } from '@txnlab/use-wallet'
-import React, { useState } from 'react'
-import ConnectWallet from './components/ConnectWallet'
-import Transact from './components/Transact'
-import AppCalls from './components/AppCalls'
+import React, { useState } from 'react';
+import { useSnackbar } from 'notistack';
+import { Account, useWallet } from '@txnlab/use-wallet';
+import ConnectWallet from './components/ConnectWallet';
+import AppCalls from './components/AppCalls';
+import AlgorandService from './utils/AlgorandService';
+import { Transaction, encodeUnsignedTransaction } from 'algosdk';
 
-interface HomeProps {}
+const Home: React.FC = () => {
+  const [appCreated, setAppCreated] = useState<number>(0);
+  const [openWalletModal, setOpenWalletModal] = useState<boolean>(false);
+  // const [openDemoModal, setOpenDemoModal] = useState<boolean>(false);
+  const [appCallsDemoModal, setAppCallsDemoModal] = useState<boolean>(false);
+  const { activeAddress, signer } = useWallet();
+  const { enqueueSnackbar } = useSnackbar();
 
-const Home: React.FC<HomeProps> = () => {
-  const [openWalletModal, setOpenWalletModal] = useState<boolean>(false)
-  const [openDemoModal, setOpenDemoModal] = useState<boolean>(false)
-  const [appCallsDemoModal, setAppCallsDemoModal] = useState<boolean>(false)
-  const { activeAddress } = useWallet()
+  const secretGuess = async (uplata: Transaction, guess: number): Promise<string> => {
 
-  const toggleWalletModal = () => {
-    setOpenWalletModal(!openWalletModal)
+    const response = await AlgorandService.pogodi(uplata, guess);
+
+    return response;
   }
 
-  const toggleDemoModal = () => {
-    setOpenDemoModal(!openDemoModal)
+  const toggleWalletModal = () => setOpenWalletModal(!openWalletModal)
+  const toggleAppCallsModal = () => setAppCallsDemoModal(!appCallsDemoModal)
+
+  const handleOptInClick = async () => {
+    try {
+        const response = await AlgorandService.optInToApp();
+        enqueueSnackbar(response, { variant: 'success' });
+        handleZapocniClick()
+    } catch (error) {
+        enqueueSnackbar(`Opt-in failed: ${((error)as Error).message}`, { variant: 'error' });
+    }
+};
+
+const handleZapocniClick = async () => {
+  try{
+    const response = await AlgorandService.zapocni_igru()
+    enqueueSnackbar(response, {variant: 'success'})
+  } catch(error){
+    enqueueSnackbar(`Starting game failed: ${error}`)
+  }
+}
+
+  const handleDeployClick = async () => {
+    try {
+      const deployParams = {
+        onSchemaBreak: 'append',
+        onUpdate: 'append',
+      }
+      const response = await AlgorandService.deployContract(deployParams, activeAddress || "", signer)
+
+      enqueueSnackbar(`Message: ${response}`, { variant: 'success' })
+
+      handleOptInClick();
+    } catch (error) {
+      enqueueSnackbar(`Deployment failed: ${((error)as Error).message}`, { variant: 'error' })
+    }
+
+  };
+
+  const fetchAdress = () => {
+    //ovde izvlacim adresu aplikacije, i na nju ce ici sve uplate
+    return AlgorandService.fetchAdress()
   }
 
-  const toggleAppCallsModal = () => {
-    setAppCallsDemoModal(!appCallsDemoModal)
+  const fetchBalance = async () => {
+    return AlgorandService.fetchAlgoBalance("" + activeAddress)
   }
+
+  function actions(){
+    toggleAppCallsModal()
+    if(appCreated == 0){
+      handleDeployClick()
+      console.log(appCreated)
+      setAppCreated(1)
+    }
+
+  }
+
+  const getAppState = async () => {
+    await AlgorandService.getApplicationState()
+  };
 
   return (
     <div className="hero min-h-screen bg-teal-400">
       <div className="hero-content text-center rounded-lg p-6 max-w-md bg-white mx-auto">
-        <div className="max-w-md">
-          <h1 className="text-4xl">
-            Welcome to <div className="font-bold">AlgoKit 🙂</div>
-          </h1>
-          <p className="py-6">
-            This starter has been generated using official AlgoKit React template. Refer to the resource below for next steps.
-          </p>
 
-          <div className="grid">
-            <a
-              data-test-id="getting-started"
-              className="btn btn-primary m-2"
-              target="_blank"
-              href="https://github.com/algorandfoundation/algokit-cli"
-            >
-              Getting started
-            </a>
-
-            <div className="divider" />
-            <button data-test-id="connect-wallet" className="btn m-2" onClick={toggleWalletModal}>
-              Wallet Connection
-            </button>
-
-            {activeAddress && (
-              <button data-test-id="transactions-demo" className="btn m-2" onClick={toggleDemoModal}>
-                Transactions Demo
-              </button>
-            )}
-
-            {activeAddress && (
-              <button data-test-id="appcalls-demo" className="btn m-2" onClick={toggleAppCallsModal}>
-                Contract Interactions Demo
-              </button>
-            )}
-          </div>
-
-          <ConnectWallet openModal={openWalletModal} closeModal={toggleWalletModal} />
-          <Transact openModal={openDemoModal} setModalState={setOpenDemoModal} />
-          <AppCalls openModal={appCallsDemoModal} setModalState={setAppCallsDemoModal} />
+        <h2 className="text-4xl">Welcome to Number Guessing Game!</h2>
+        <div>Please connect your wallet and place your bid :)</div>
+        <div className="grid">
+          <div className="divider" />
+          <button className="btn m-2" onClick={toggleWalletModal}>Wallet Connection</button>
+          {/* {activeAddress && <button className="btn m-2" onClick={toggleDemoModal}>Transactions Demo</button>} */}
+          {activeAddress && <button className="btn m-2" onClick={actions}>Let's play!</button>}
         </div>
+        <ConnectWallet openModal={openWalletModal} closeModal={toggleWalletModal} />
+        {/* <Transact openModal={openDemoModal} setModalState={setOpenDemoModal} /> */}
+        <AppCalls openModal={appCallsDemoModal} setModalState={setAppCallsDemoModal} secretGuess={secretGuess} getBalance = {fetchBalance} getAdress = {fetchAdress}/>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;

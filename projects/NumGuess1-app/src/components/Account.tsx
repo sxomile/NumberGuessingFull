@@ -15,8 +15,8 @@ const Account = () => {
     <div>
       <a
         className="text-xl"
-        target="_blank"
-        href={`https://app.dappflow.org/setnetwork?name=${dappFlowNetworkName}&redirect=explorer/account/${activeAddress}/`}
+        // target="_blank"
+        // href={`https://app.dappflow.org/setnetwork?name=${dappFlowNetworkName}&redirect=explorer/account/${activeAddress}/`}
       >
         Address: {ellipseAddress(activeAddress)}
       </a>
