@@ -116,7 +116,7 @@ zapocniigru_2:
 proto 0 1
 bytec_1 // ""
 bytec_0 // "skriveni_broj"
-pushint 6 // 6
+pushint 7 // 7
 app_global_put
 pushbytes 0x00314e616d657374656e206a6520736b726976656e692062726f6a2e20537265636e6f20736120706f6761646a616e6a656d21 // 0x00314e616d657374656e206a6520736b726976656e692062726f6a2e20537265636e6f20736120706f6761646a616e6a656d21
 frame_bury 0
@@ -196,7 +196,7 @@ promenibroj_6_l1:
 txn Sender
 bytec_2 // "brojac"
 app_local_get
-pushint 7 // 7
+pushint 6 // 6
 <
 bnz promenibroj_6_l4
 bytec_0 // "skriveni_broj"

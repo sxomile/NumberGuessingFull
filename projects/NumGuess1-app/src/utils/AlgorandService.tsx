@@ -1,20 +1,11 @@
 import * as algokit from '@algorandfoundation/algokit-utils'
-import { Algodv2, Indexer, SignedTransaction, Transaction, TransactionWithSigner } from 'algosdk';
+import { Algodv2, Indexer, Transaction } from 'algosdk';
 import { PogadjanjeClient } from '../contracts/Pogadjanje'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from './network/getAlgoClientConfigs'
 import { AppDetails } from '@algorandfoundation/algokit-utils/types/app-client';
-import algosdk from 'algosdk';
-import { useWallet } from '@txnlab/use-wallet';
-import { TransactionToSign } from '@algorandfoundation/algokit-utils/types/transaction';
-
-export interface PogadjanjeGameState {
-  skriveniBroj: number,
-  rezultat: number,
-  brojac: number
-}
 
 class AlgorandService {
-  public algodClient: Algodv2;
+  private algodClient: Algodv2;
   private indexer: Indexer;
   private appClient: PogadjanjeClient | null = null;
   private appId: number = 0;
@@ -27,6 +18,14 @@ class AlgorandService {
     this.indexer = algokit.getAlgoIndexerClient(indexerConfig) as Indexer;
   }
 
+  public getAlogdClient(){
+    return this.algodClient;
+  }
+
+  public fetchAdress(){
+    return this.appAdress;
+  }
+
   public async initializeAppClient(activeAdress: string, signer: any): Promise<void> {
     const appDetails = {
       resolveBy: 'creatorAndName',
@@ -36,22 +35,6 @@ class AlgorandService {
       findExistingUsing: this.indexer
     } as AppDetails;
     this.appClient = new PogadjanjeClient(appDetails, this.algodClient)
-  }
-
-  public async fetchAlgoBalance(activeAddress: string) {
-    try {
-      const accountInfo = await this.algodClient.accountInformation(activeAddress).do();
-      const balance = accountInfo.amount / 1e6;
-      console.log(`Balance: ${balance} Algo`);
-      return balance
-    } catch (error) {
-      console.error('Failed to fetch account balance:', error);
-      throw error;
-    }
-  }
-
-  public fetchAdress(){
-    return this.appAdress;
   }
 
   public async deployContract(deployParams: any, activeAddress: string, signer: any): Promise<string> {
@@ -68,11 +51,18 @@ class AlgorandService {
     }
   }
 
-  public async optInToApp(): Promise<string> {
-    if (this.appId === 0) {
-        throw new Error('App is not deployed yet!');
+  public async fetchAlgoBalance(activeAddress: string) {
+    try {
+      const accountInfo = await this.algodClient.accountInformation(activeAddress).do();
+      const balance = accountInfo.amount / 1e6;
+      return balance
+    } catch (error) {
+      console.error('Failed to fetch account balance:', error);
+      throw error;
     }
+  }
 
+  public async optInToApp(): Promise<string> {
     try {
         this.appClient?.optIn.bare()
 
@@ -82,9 +72,9 @@ class AlgorandService {
     }
 }
 
-  public async zapocni_igru(): Promise<string> {
+  public async zapocniIgru(): Promise<string> {
     try {
-      const start = this.appClient?.zapocniIgru(this.appClient)
+      this.appClient?.zapocniIgru(this.appClient)
 
       return "App started succesfully"
   } catch (error) {
@@ -97,7 +87,7 @@ class AlgorandService {
     if (!this.appClient) throw new Error('appClient not initialized');
     try {
 
-      const response = await this.appClient.pogodi({ uplata: uplata, broj: broj });
+      await this.appClient.pogodi({ uplata: uplata, broj: broj });
       const odgovor = await this.appClient.rezultatIgre.call
       return odgovor;
     } catch (error) {
@@ -105,52 +95,5 @@ class AlgorandService {
     }
   }
 
-  public async getApplicationState(): Promise<PogadjanjeGameState> {
-    if (this.appId === 0) {
-      throw new Error('App is not deployed yet!');
-    }
-
-    try {
-      const appInfo = await this.algodClient.getApplicationByID(this.appId).do();
-      const stateData: Partial<PogadjanjeGameState> = {};
-
-      appInfo.params['global-state'].forEach((state) => {
-        const key = decodeBase64(state.key);
-        const value = state.value.type === 2 ? state.value.uint : decodeBase64(state.value.bytes);
-
-        switch (key) {
-          case 'rezultat':
-            stateData.rezultat = value as number;
-            break;
-          case 'skriveni_broj':
-            stateData.skriveniBroj = value as number;
-            break;
-        }
-      },
-      appInfo.params['local-state'].forEach((state) => {
-        const key = decodeBase64(state.key);
-        const value = state.value.type === 2 ? state.value.uint : decodeBase64(state.value.bytes)
-
-        switch(key){
-          case 'brojac':
-            stateData.brojac = value as number
-            break;
-        }
-      })
-      );
-
-      return stateData as PogadjanjeGameState;
-    } catch (e) {
-      console.error('Error retrieving application state:', e);
-      throw e;
-    }
-  }
 }
-
-function decodeBase64(base64String: string): string {
-  return typeof Buffer !== 'undefined'
-    ? Buffer.from(base64String, 'base64').toString()
-    : atob(base64String);
-}
-
 export default new AlgorandService();

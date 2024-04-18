@@ -2,13 +2,12 @@ import React, { useState } from 'react';
 import { useSnackbar } from 'notistack';
 import { useWallet } from '@txnlab/use-wallet';
 import algosdk, { Transaction } from 'algosdk';
-import AlgorandService, { PogadjanjeGameState } from '../utils/AlgorandService';
+import AlgorandService from '../utils/AlgorandService';
 
 interface AppCallsProps {
   openModal: boolean;
   setModalState: (value: boolean) => void;
   secretGuess: (uplata: Transaction, guess: number) => Promise<string>;
-  // getAppState: () => Promise<void>;
   getBalance: () => Promise<number>
   getAdress: () => string
 }
@@ -17,8 +16,7 @@ const AppCalls: React.FC<AppCallsProps> = ({ openModal, setModalState, secretGue
   const [contractInput, setContractInput] = useState<number>(0);
   const [bid, setBid] = useState<string>('')
   const { enqueueSnackbar } = useSnackbar();
-  const { activeAddress, signTransactions } = useWallet();
-
+  const { activeAddress } = useWallet();
 
   const handlePlayerMove = async () => {
     if (!activeAddress) {
@@ -28,7 +26,7 @@ const AppCalls: React.FC<AppCallsProps> = ({ openModal, setModalState, secretGue
     const algosBefore = await getBalance()
     try {
 
-      const suggestedParams = await AlgorandService.algodClient.getTransactionParams().do();
+      const suggestedParams = await AlgorandService.getAlogdClient().getTransactionParams().do();
       const bidding = bid
 
       if(!parseInt(bidding)){
@@ -36,14 +34,18 @@ const AppCalls: React.FC<AppCallsProps> = ({ openModal, setModalState, secretGue
         return
       }
 
-      const transaction = algosdk.makePaymentTxnWithSuggestedParams(activeAddress, getAdress(), parseInt(bidding) * 1000000, undefined, undefined, suggestedParams);
+      const transaction = algosdk.makePaymentTxnWithSuggestedParams
+      (activeAddress, getAdress(), parseInt(bidding) * 1000000, undefined, undefined, suggestedParams);
+
       await secretGuess(transaction, contractInput);
-      // enqueueSnackbar(`Response from the contract: ${response}`, { variant: 'success' });
+
     } catch (error) {
+
       if((error as Error).message.includes('overspend')){
         enqueueSnackbar('Application doesn\'t have enough money to pay you :(\n Come back later or try lower bid :(')
         return
       }
+
       const algosAfter = await getBalance()
       if(algosAfter > algosBefore){
         enqueueSnackbar("Congrats! Available algos: " + algosAfter, {variant: "success"})
@@ -57,8 +59,10 @@ const AppCalls: React.FC<AppCallsProps> = ({ openModal, setModalState, secretGue
     <dialog className={`modal ${openModal ? 'modal-open' : ''}`}>
       <form className="modal-box">
         <h3 className="font-bold text-lg">Can YOU guess the hidden number?</h3>
-        <input type="number" placeholder="Guess a number 1-10" className="input input-bordered w-full mt-4" value={contractInput.toString()} onChange={(e) => setContractInput(parseInt(e.target.value))} />
-        <input type="text" placeholder="Bidding amount:" className="input input-bordered w-full mt-4" value={bid} onChange={(e) => setBid(e.target.value)} />
+        <input type="number" placeholder="Guess a number 1-10" className="input input-bordered w-full mt-4"
+        value={contractInput.toString()} onChange={(e) => setContractInput(parseInt(e.target.value))} />
+        <input type="text" placeholder="Bidding amount:" className="input input-bordered w-full mt-4"
+        value={bid} onChange={(e) => setBid(e.target.value)} />
         <div className="modal-action">
           <button type="button" className="btn" onClick={() => setModalState(false)}>Close</button>
           <button type="button" className="btn btn-primary" onClick={handlePlayerMove}>Try your luck!</button>

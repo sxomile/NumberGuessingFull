@@ -13,11 +13,7 @@ const Account = () => {
 
   return (
     <div>
-      <a
-        className="text-xl"
-        // target="_blank"
-        // href={`https://app.dappflow.org/setnetwork?name=${dappFlowNetworkName}&redirect=explorer/account/${activeAddress}/`}
-      >
+      <a className="text-xl">
         Address: {ellipseAddress(activeAddress)}
       </a>
       <div className="text-xl">Network: {algoConfig.network === '' ? 'localnet' : algoConfig.network}</div>
